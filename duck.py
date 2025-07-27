@@ -17,8 +17,14 @@ def get_next_task():
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         data = response.json()
-        print("[+] Next task:", data)
-        return data
+        print("[+] Next task data:", data)
+
+        tasks = data.get("payload", {}).get("tasks", [])
+        if tasks:
+            task_id = tasks[0].get("id")
+            return task_id
+        else:
+            return None
     else:
         print("[!] Failed to get task:", response.status_code, response.text)
         return None
@@ -28,15 +34,15 @@ def complete_task(task_id):
     payload = {"task_id": task_id}
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code == 200:
-        print("[+] Task completed")
+        print("[+] Task completed:", task_id)
     else:
         print("[!] Failed to complete task:", response.status_code, response.text)
 
 # Loop auto task
 while True:
-    task = get_next_task()
-    if task and task.get("id"):
-        complete_task(task["id"])
+    task_id = get_next_task()
+    if task_id:
+        complete_task(task_id)
     else:
         print("[-] No task available, retry in 10s")
         time.sleep(10)
