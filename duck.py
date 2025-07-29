@@ -1,75 +1,85 @@
 import requests
+import json
 import time
 
-class DuckyStarsBot:
-    def __init__(self, token, index=1):
-        self.token = token
-        self.index = index
-        self.headers = {
-            'User-Agent': "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36",
-            'Accept': "application/json",
-            'authorization': self.token,
-            'origin': "https://web.duckystars.app",
-            'referer': "https://web.duckystars.app/"
-        }
+# Delay antar akun (detik)
+DELAY_BETWEEN_ACCOUNTS = 5
+# Waktu ulang (4 jam = 14400 detik)
+LOOP_INTERVAL = 14400
 
-    def get_tasks(self):
-        url = "https://api.duckystars.app/task/next"
-        try:
-            response = requests.get(url, headers=self.headers, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                tasks = data.get("payload", {}).get("tasks", [])
-                return [task["id"] for task in tasks]
-            elif response.status_code == 404:
-                print(f"[{self.index}] ❌ Tidak ada task (404)")
-                return []
-            else:
-                print(f"[{self.index}] ⚠️ Gagal ambil task: {response.status_code}")
-                return []
-        except Exception as e:
-            print(f"[{self.index}] ❌ Error saat ambil task: {e}")
-            return []
-
-    def complete_task(self, task_id):
-        url = "https://api.duckystars.app/task/complete"
-        payload = {"task_id": task_id}
-        try:
-            response = requests.post(url, json=payload, headers=self.headers, timeout=10)
+def get_tasks(token):
+    headers = {
+        'Authorization': token,
+        'Accept': 'application/json',
+        'Origin': 'https://web.duckystars.app',
+        'Referer': 'https://web.duckystars.app/',
+        'User-Agent': 'Mozilla/5.0'
+    }
+    try:
+        response = requests.get('https://api.duckystars.app/task/next', headers=headers, timeout=10)
+        if response.status_code == 200:
             data = response.json()
-            if data.get("success") or data.get("payload", {}).get("success"):
-                print(f"[{self.index}] ✅ Task selesai: {task_id}")
-                return True
-            else:
-                print(f"[{self.index}] ⚠️ Task gagal: {task_id}")
-                return False
-        except Exception as e:
-            print(f"[{self.index}] ❌ Error kirim task: {e}")
-            return False
+            tasks = data.get('payload', {}).get('tasks', [])
+            return [task.get('id') for task in tasks if task.get('id')]
+        else:
+            print(f"[!] Gagal ambil task: {response.status_code}")
+            return []
+    except Exception as e:
+        print(f"[!] Error ambil task: {e}")
+        return []
 
-    def run(self):
-        total_done = 0
-        while True:
-            tasks = self.get_tasks()
-            if not tasks:
-                print(f"[{self.index}] ✅ Semua task selesai ({total_done} task)")
+def complete_task(token, task_id):
+    headers = {
+        'Authorization': token,
+        'Accept': 'application/json',
+        'Origin': 'https://web.duckystars.app',
+        'Referer': 'https://web.duckystars.app/',
+        'User-Agent': 'Mozilla/5.0',
+        'Content-Type': 'application/json'
+    }
+    payload = {"task_id": task_id}
+    try:
+        response = requests.post("https://api.duckystars.app/task/complete", headers=headers, json=payload, timeout=10)
+        if response.status_code == 200:
+            print(f"[+] Task {task_id[:8]} selesai")
+            return True
+        else:
+            print(f"[!] Gagal task {task_id[:8]}: {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"[!] Error task {task_id[:8]}: {e}")
+        return False
+
+def run_bot_for_token(token, index):
+    print(f"\n=== Akun #{index+1} ===")
+    while True:
+        tasks = get_tasks(token)
+        if not tasks:
+            print("[*] Tidak ada task lagi, lanjut akun berikutnya")
+            break
+        for task_id in tasks:
+            complete_task(token, task_id)
+            time.sleep(2)  # Delay antar task
+
+def main():
+    while True:
+        try:
+            with open("tokens.txt", "r") as f:
+                tokens = [line.strip() for line in f if line.strip()]
+            if not tokens:
+                print("File tokens.txt kosong")
                 break
 
-            print(f"[{self.index}] 🔍 Ditemukan {len(tasks)} task")
-            for task_id in tasks:
-                if self.complete_task(task_id):
-                    total_done += 1
-                time.sleep(0.7)
+            for i, token in enumerate(tokens):
+                run_bot_for_token(token, i)
+                time.sleep(DELAY_BETWEEN_ACCOUNTS)
 
-            time.sleep(1)  # delay antar batch
+            print(f"[⏳] Menunggu 4 jam sebelum ulangi lagi...")
+            time.sleep(LOOP_INTERVAL)
+
+        except KeyboardInterrupt:
+            print("\n[!] Dihentikan oleh pengguna")
+            break
 
 if __name__ == "__main__":
-    with open("initdata.txt", "r") as f:
-        tokens = [line.strip() for line in f if line.strip()]
-
-    for i, token in enumerate(tokens, start=1):
-        print(f"\n=============================")
-        print(f"🚀 Jalankan akun #{i}")
-        print(f"=============================")
-        bot = DuckyStarsBot(token, index=i)
-        bot.run()
+    main()
